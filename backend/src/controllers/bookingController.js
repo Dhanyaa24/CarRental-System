@@ -2,6 +2,7 @@
 const Booking = require('../models/booking');
 const User = require('../models/user');
 const Car = require('../models/car');
+const { query } = require('../config/db');
 
 // Create a new booking with detailed logging
 exports.createBooking = async (req, res) => {
@@ -222,8 +223,21 @@ exports.createBooking = async (req, res) => {
 // Get all bookings
 exports.getAllBookings = async (req, res) => {
     try {
+        // Fetch all bookings
         const bookings = await Booking.findAll();
-        res.json(bookings);
+        // For each booking, fetch user and car details
+        const bookingsWithDetails = await Promise.all(bookings.map(async (b) => {
+            let user = null;
+            let car = null;
+            try {
+                user = await User.findById(b.user_id);
+            } catch (e) {}
+            try {
+                car = await Car.findById(b.car_id);
+            } catch (e) {}
+            return { ...b, user, car };
+        }));
+        res.json(bookingsWithDetails);
     } catch (error) {
         console.error('Error fetching bookings:', error);
         res.status(500).json({ 
@@ -347,5 +361,167 @@ exports.deleteBooking = async (req, res) => {
             message: 'Error deleting booking',
             error: error.message 
         });
+    }
+};
+
+// Accept a booking
+exports.acceptBooking = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    // Update booking status to 'active' when admin accepts
+    await Booking.updateStatus(bookingId, 'active');
+    // Get the booking to find the car_id
+    const booking = await Booking.findById(bookingId);
+    if (booking && booking.car_id) {
+      // Set the car as unavailable using Car model
+      const Car = require('../models/car');
+      await Car.update(booking.car_id, { ...await Car.findById(booking.car_id), availability: false });
+    }
+    res.json({ message: 'Booking accepted and car marked as unavailable' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error accepting booking', error });
+  }
+};
+
+exports.getDashboardData = async (req, res) => {
+    try {
+        console.log('=== GET DASHBOARD DATA ===');
+        console.log('Request user:', req.user);
+        
+        // Validate user from token
+        if (!req.user || !req.user.id) {
+            console.error('Invalid user data in token:', req.user);
+            return res.status(400).json({ 
+                message: 'Invalid user authentication',
+                error: 'Missing or invalid user ID in token'
+            });
+        }
+
+        const userId = parseInt(req.user.id);
+        if (isNaN(userId)) {
+            console.error('Invalid user ID format:', req.user.id);
+            return res.status(400).json({ 
+                message: 'Invalid user ID format',
+                error: 'User ID must be a number'
+            });
+        }
+
+        console.log('Fetching bookings for user ID:', userId);
+        
+        // Get all bookings for the user with car details
+        const bookings = await Booking.findByUserId(userId);
+        console.log('Bookings found:', bookings?.length || 0);
+        
+        if (!bookings) {
+            console.log('No bookings found for user');
+            return res.json({
+                totalBookings: 0,
+                activeBookings: 0,
+                currentBooking: null,
+                recentActivity: []
+            });
+        }
+
+        // Get current date for comparison
+        const now = new Date();
+        
+        // Find current active booking (most recent active/confirmed booking)
+        const currentBooking = bookings
+            .filter(b => ['active', 'confirmed'].includes(b.status.toLowerCase()) && new Date(b.end_date) >= now)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] || null;
+        
+        // Count active bookings
+        const activeBookings = bookings.filter(b => 
+            ['active', 'confirmed'].includes(b.status.toLowerCase()) && 
+            new Date(b.end_date) >= now
+        ).length;
+        
+        // Get recent activity (last 5 bookings)
+        const recentActivity = bookings
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(0, 5)
+            .map(b => ({
+                type: 'booking',
+                description: `${b.status.charAt(0).toUpperCase() + b.status.slice(1)} booking for ${b.car?.brand || ''} ${b.car?.model || 'a car'}`,
+                timestamp: b.created_at
+            }));
+
+        console.log('Dashboard data prepared:', {
+            totalBookings: bookings.length,
+            activeBookings,
+            hasCurrentBooking: !!currentBooking,
+            recentActivityCount: recentActivity.length
+        });
+
+        res.json({
+            totalBookings: bookings.length,
+            activeBookings,
+            currentBooking,
+            recentActivity
+        });
+    } catch (error) {
+        console.error('Error getting dashboard data:', {
+            message: error.message,
+            stack: error.stack,
+            code: error.code
+        });
+        res.status(500).json({ 
+            message: 'Error getting dashboard data',
+            error: error.message,
+            code: error.code
+        });
+    }
+};
+
+// Pay for a booking
+exports.payForBooking = async (req, res) => {
+    try {
+        const bookingId = parseInt(req.params.id);
+        if (isNaN(bookingId)) {
+            return res.status(400).json({ message: 'Invalid booking ID' });
+        }
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+            return res.status(404).json({ message: 'Booking not found' });
+        }
+        if (booking.status === 'paid') {
+            return res.status(400).json({ message: 'Booking already paid' });
+        }
+        const { method, amount, cardNumber, expiry, cvc, upiId } = req.body;
+        if (!method || !amount) {
+            return res.status(400).json({ message: 'Missing payment method or amount' });
+        }
+        // Validate details based on method
+        if (method === 'card') {
+            if (!cardNumber || !expiry || !cvc) {
+                return res.status(400).json({ message: 'Missing card details' });
+            }
+        } else if (method === 'upi') {
+            if (!upiId) {
+                return res.status(400).json({ message: 'Missing UPI ID' });
+            }
+        }
+        // Save e-bill details in booking (as JSON field if available)
+        const eBillDetails = {
+            method,
+            amount,
+            cardNumber: cardNumber ? `**** **** **** ${cardNumber.slice(-4)}` : undefined,
+            expiry,
+            upiId,
+            paidAt: new Date().toISOString()
+        };
+        // If your Booking model supports a JSON/details field, update it. Otherwise, just update status and log e-bill.
+        await Booking.updateStatus(bookingId, 'paid');
+        // Optionally, save e-bill details (pseudo code, adapt to your DB):
+        if (typeof Booking.updateEBillDetails === 'function') {
+            await Booking.updateEBillDetails(bookingId, eBillDetails);
+        } else {
+            // Fallback: log to console
+            console.log('E-Bill details for booking', bookingId, eBillDetails);
+        }
+        res.json({ message: 'Payment successful', bookingId, eBillDetails });
+    } catch (error) {
+        console.error('PAYMENT ERROR:', error);
+        res.status(500).json({ message: 'Payment failed', error: error.message });
     }
 };

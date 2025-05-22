@@ -1,4 +1,4 @@
-const { pool } = require('../config/db');
+const { pool, query } = require('../config/db');
 
 class User {
     /**
@@ -182,6 +182,55 @@ class User {
             console.error('Error checking if email exists:', error);
             throw new Error('Failed to check email existence');
         }
+    }
+
+    static async findAll() {
+        try {
+            console.log('User.findAll called');
+            const sql = `SELECT id, name, email, role, phone, address, 
+                driver_license, license_expiry, created_at 
+                FROM users`;
+            console.log('Executing SQL:', sql);
+            
+            const rows = await query(sql);
+            console.log('Query result:', {
+                rowCount: rows?.length || 0,
+                firstRow: rows?.[0] ? 'exists' : 'none'
+            });
+            
+            if (!rows) {
+                console.log('No rows returned from query');
+                return [];
+            }
+            
+            // Ensure we're returning an array
+            const userArray = Array.isArray(rows) ? rows : [rows];
+            console.log('Returning users:', userArray.length);
+            return userArray;
+        } catch (error) {
+            console.error('Error in User.findAll:', {
+                message: error.message,
+                code: error.code,
+                sqlState: error.sqlState,
+                stack: error.stack
+            });
+            throw new Error(`Failed to fetch users: ${error.message}`);
+        }
+    }
+
+    static async destroy({ where }) {
+        try {
+            if (!where || !where.id) throw new Error('No user ID provided for deletion');
+            const [result] = await pool.query('DELETE FROM users WHERE id = ?', [where.id]);
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            throw new Error('Failed to delete user');
+        }
+    }
+
+    static async findByPk(id) {
+        return this.findById(id);
     }
 }
 

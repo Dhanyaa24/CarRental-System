@@ -171,7 +171,7 @@ async function viewBookingDetails(bookingId) {
                 <p><strong>Start Date:</strong> ${new Date(booking.start_date).toLocaleDateString()}</p>
                 <p><strong>End Date:</strong> ${new Date(booking.end_date).toLocaleDateString()}</p>
                 <p><strong>Status:</strong> ${booking.status}</p>
-                        <p><strong>Total Amount:</strong> $${booking.total_amount}</p>
+                <p><strong>Total Amount:</strong> Rs${booking.total_amount}</p>
             </div>
         `;
         

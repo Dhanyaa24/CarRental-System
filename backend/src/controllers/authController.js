@@ -67,8 +67,12 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   try {
+    console.log('=== LOGIN REQUEST ===');
+    console.log('Request body:', { ...req.body, password: '***' });
+
     const validation = validateUserLogin(req.body);
     if (!validation.isValid) {
+      console.error('Validation failed:', validation.errors);
       return res.status(400).json({ 
         message: 'Validation failed', 
         errors: validation.errors 
@@ -76,26 +80,36 @@ exports.login = async (req, res) => {
     }
 
     const { email, password } = req.body;
+    console.log('Validated data:', { email, password: '***' });
+
+    // Find user by email
+    console.log('Finding user by email:', email);
     const user = await User.findByEmail(email);
 
     if (!user) {
+      console.error('User not found:', email);
       return res.status(401).json({ 
         message: 'Authentication failed',
         errors: { email: 'Invalid email or password' }
       });
     }
 
+    // Verify password
+    console.log('Verifying password...');
     const isMatch = await bcrypt.compare(password, user.hashed_password);
     if (!isMatch) {
+      console.error('Password mismatch for user:', email);
       return res.status(401).json({ 
         message: 'Authentication failed',
         errors: { password: 'Invalid email or password' }
       });
     }
 
+    // Create token with user data
+    console.log('Creating token for user:', { id: user.id, email: user.email });
     const token = jwt.sign(
       { 
-        id: user.id, 
+        id: parseInt(user.id), // Ensure ID is a number
         role: user.role,
         email: user.email 
       }, 
@@ -103,18 +117,23 @@ exports.login = async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    console.log('Login successful for user:', { id: user.id, email: user.email });
     res.status(200).json({ 
       message: 'Login successful',
       token,
       user: {
-        id: user.id,
+        id: parseInt(user.id), // Ensure ID is a number
         name: user.name,
         email: user.email,
         role: user.role
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
     res.status(500).json({ 
       message: 'Error processing login request',
       error: process.env.NODE_ENV === 'development' ? error.message : 'An unexpected error occurred'

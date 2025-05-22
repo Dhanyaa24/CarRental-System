@@ -15,18 +15,18 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadCars() {
     const carList = document.getElementById('car-list');
     try {
-    carList.innerHTML = `
-        <div class="col-12 text-center">
-            <div class="spinner-border text-success" role="status">
-                <span class="visually-hidden">Loading...</span>
+        carList.innerHTML = `
+            <div class="col-12 text-center">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
             </div>
-        </div>
-    `;
+        `;
 
         const response = await fetch(`${API_BASE_URL}/cars`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         console.log('Received data:', data);
@@ -35,31 +35,45 @@ async function loadCars() {
         cars = Array.isArray(data) ? data : [data];
         console.log('Processed cars:', cars);
         
-            carList.innerHTML = '';
-            
+        carList.innerHTML = '';
+        
         if (cars.length === 0) {
             carList.innerHTML = '<div class="col-12"><div class="alert alert-dark">No cars available at the moment.</div></div>';
-                return;
-            }
-            
+            return;
+        }
+        
         cars.forEach(car => {
-                const carCol = document.createElement('div');
-                carCol.className = 'col-md-4 mb-4';
-                carCol.innerHTML = `
-                <div class="card car-card h-100 bg-dark text-light border-success" data-category="${car.category}">
-                    <img src="${car.image_url || 'images/default-car.jpg'}" 
-                         class="card-img-top" 
+            const carCol = document.createElement('div');
+            carCol.className = 'col-md-4 mb-4';
+            carCol.innerHTML = `
+                <div class="card car-card h-100 bg-dark text-light border-success position-relative" data-category="${car.category}">
+                    <div class="position-relative" style="height: 200px;">
+                        <img src="${car.image_url || 'images/default-car.jpg'}" 
+                             class="card-img-top" 
                              alt="${car.brand} ${car.model}"
-                         style="height: 200px; object-fit: cover; border-bottom: 2px solid #2ecc71;">
-                        <div class="card-body">
+                             style="height: 200px; object-fit: cover; border-bottom: 2px solid #2ecc71;">
+                        ${car.availability === false || car.availability === 0 ? 
+                            `<div class='position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center' 
+                                  style='background:rgba(0,0,0,0.6);z-index:2;pointer-events:none;height:100%;'>
+                                <span class='badge bg-danger fs-5'>Unavailable</span>
+                             </div>` : ''}
+                    </div>
+                    <div class="card-body">
                         <h5 class="card-title text-success">${car.brand} ${car.model}</h5>
                         <p class="card-text text-muted">${car.year} • ${car.transmission} • ${car.fuel_type}</p>
                         <p class="card-text text-light">
-                            <strong>Price:</strong> $${car.price}/day
+                            <strong>Price:</strong> ₹${car.price}/day
+                        </p>
+                        <p class="card-text text-light">
+                            <strong>Category:</strong> ${car.category}
+                        </p>
+                        <p class="card-text text-light">
+                            <strong>Seats:</strong> ${car.seats}
                         </p>
                         <div class="d-flex justify-content-between align-items-center">
                             <button class="btn btn-success" 
-                                    onclick="showBookingModal(${car.id})">
+                                    onclick="showBookingModal(${car.id})" 
+                                    ${car.availability === false || car.availability === 0 ? 'disabled' : ''}>
                                 Book Now
                             </button>
                             <button class="btn btn-outline-success" 
@@ -67,10 +81,10 @@ async function loadCars() {
                                 Details
                             </button>
                         </div>
-                        </div>
                     </div>
-                `;
-                carList.appendChild(carCol);
+                </div>
+            `;
+            carList.appendChild(carCol);
         });
     } catch (error) {
         console.error('Error loading cars:', error);
@@ -147,6 +161,10 @@ function viewCarDetails(carId) {
     const modal = new bootstrap.Modal(document.getElementById('carDetailsModal'));
     const modalBody = document.querySelector('#carDetailsModal .modal-body');
     
+    // Check if user is admin
+    const user = JSON.parse(localStorage.getItem('user'));
+    const isAdmin = user && user.role === 'admin';
+    
     modalBody.innerHTML = `
         <div class="card bg-dark text-light border-success">
             <img src="${car.image_url || 'images/default-car.jpg'}" 
@@ -161,12 +179,32 @@ function viewCarDetails(carId) {
                     <p class="text-light"><strong>Fuel Type:</strong> ${car.fuel_type}</p>
                     <p class="text-light"><strong>Seats:</strong> ${car.seats}</p>
                     <p class="text-light"><strong>Mileage:</strong> ${car.mileage} km</p>
-                    <p class="text-light"><strong>Price:</strong> $${car.price}/day</p>
+                    <p class="text-light"><strong>Price:</strong> ₹${car.price}/day</p>
+                    <p class="text-light"><strong>Category:</strong> ${car.category}</p>
+                    <p class="text-light"><strong>Status:</strong> 
+                        <span class="badge ${car.availability ? 'bg-success' : 'bg-danger'}">
+                            ${car.availability ? 'Available' : 'Unavailable'}
+                        </span>
+                    </p>
                 </div>
                 <div class="text-end mt-3">
-                    <button class="btn btn-success" onclick="showBookingModal(${car.id})">
+                    ${isAdmin ? `
+                        <div class="admin-controls mb-3">
+                            <button class="btn btn-warning" onclick="toggleCarAvailability(${car.id}, ${car.availability})">
+                                ${car.availability ? 'Make Unavailable' : 'Make Available'}
+                            </button>
+                            <button class="btn btn-primary" onclick="editCar(${car.id})">
+                                Edit Car
+                            </button>
+                            <button class="btn btn-danger" onclick="deleteCar(${car.id})">
+                                Delete Car
+                            </button>
+                        </div>
+                    ` : ''}
+                    <button class="btn btn-success" onclick="showBookingModal(${car.id})" ${car.availability === false || car.availability === 0 ? 'disabled' : ''}>
                         Book Now
                     </button>
+                    ${car.availability === false || car.availability === 0 ? `<span class='badge bg-danger ms-2'>Unavailable</span>` : ''}
                 </div>
             </div>
         </div>`;
@@ -336,3 +374,92 @@ async function handleBookingSubmit(event) {
     }
 }
 window.handleBookingSubmit = handleBookingSubmit;
+
+// Helper function to check if user is logged in and token exists
+function requireAdminAuth() {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (!token || !user || user.role !== 'admin') {
+        alert('Your session has expired or you are not authorized. Please log in as admin.');
+        window.location.href = 'login.html';
+        return false;
+    }
+    return true;
+}
+
+// Add admin car management functions
+async function toggleCarAvailability(carId, currentStatus) {
+    if (!requireAdminAuth()) return;
+    if (!confirm(`Are you sure you want to ${currentStatus ? 'make unavailable' : 'make available'} this car?`)) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/admin/cars/${carId}/availability`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ availability: !currentStatus })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to update car availability');
+        }
+
+        alert('Car availability updated successfully');
+        loadCars();
+    } catch (error) {
+        console.error('Error updating car availability:', error);
+        alert('Error updating car availability. Please try again.');
+    }
+}
+
+function editCar(carId) {
+    if (!requireAdminAuth()) return;
+    const car = cars.find(c => c.id === carId);
+    if (!car) return;
+
+    const modal = new bootstrap.Modal(document.getElementById('editCarModal'));
+    const form = document.getElementById('editCarForm');
+    
+    // Populate form fields
+    form.elements['carId'].value = car.id;
+    form.elements['brand'].value = car.brand;
+    form.elements['model'].value = car.model;
+    form.elements['year'].value = car.year;
+    form.elements['price'].value = car.price;
+    form.elements['category'].value = car.category;
+    form.elements['transmission'].value = car.transmission;
+    form.elements['fuel_type'].value = car.fuel_type;
+    form.elements['seats'].value = car.seats;
+    form.elements['image_url'].value = car.image_url || '';
+    form.elements['availability'].checked = car.availability;
+    
+    modal.show();
+}
+
+async function deleteCar(carId) {
+    if (!requireAdminAuth()) return;
+    if (!confirm('Are you sure you want to delete this car? This action cannot be undone.')) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/admin/cars/${carId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to delete car');
+        }
+
+        alert('Car deleted successfully');
+        loadCars();
+    } catch (error) {
+        console.error('Error deleting car:', error);
+        alert('Error deleting car. Please try again.');
+    }
+}

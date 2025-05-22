@@ -73,18 +73,23 @@ class Booking {
 
     static async findById(id) {
         try {
-            const [rows] = await pool.query(
-                `SELECT b.*, c.model, c.brand, c.image_url, c.price, 
-                        u.name as user_name, u.email
+            console.log('[Booking Model] Finding booking by ID:', id);
+            const result = await query(
+                `SELECT b.*, c.model, c.brand, c.image_url, c.price
                  FROM bookings b
-                 LEFT JOIN cars c ON b.car_id = c.id
-                 LEFT JOIN users u ON b.user_id = u.id
+                 JOIN cars c ON b.car_id = c.id
                  WHERE b.id = ?`,
                 [id]
             );
-            return rows[0];
+            console.log('[Booking Model] Find result:', result);
+            return result[0];
         } catch (error) {
-            console.error('Error finding booking by ID:', error);
+            console.error('[Booking Model] Error in findById:', {
+                message: error.message,
+                code: error.code,
+                sqlState: error.sqlState,
+                stack: error.stack
+            });
             throw error;
         }
     }
@@ -139,16 +144,69 @@ class Booking {
     // Method to get all bookings (for admin)
     static async findAll() {
         try {
-            const [rows] = await pool.query(
-                `SELECT b.*, c.model, c.brand, u.name as user_name, u.email
+            console.log('Booking.findAll called');
+            const sql = `SELECT b.*, c.model, c.brand, u.name as user_name, u.email
                  FROM bookings b
                  JOIN cars c ON b.car_id = c.id
                  JOIN users u ON b.user_id = u.id
-                 ORDER BY b.created_at DESC`
-            );
-            return rows;
+                 ORDER BY b.created_at DESC`;
+            console.log('Executing SQL:', sql);
+            
+            const rows = await query(sql);
+            console.log('Query result:', {
+                rowCount: rows?.length || 0,
+                firstRow: rows?.[0] ? 'exists' : 'none'
+            });
+            
+            if (!rows) {
+                console.log('No rows returned from query');
+                return [];
+            }
+            
+            // Ensure we're returning an array
+            const bookingArray = Array.isArray(rows) ? rows : [rows];
+            console.log('Returning bookings:', bookingArray.length);
+            return bookingArray;
         } catch (error) {
-            console.error('Error finding all bookings:', error);
+            console.error('Error in Booking.findAll:', {
+                message: error.message,
+                code: error.code,
+                sqlState: error.sqlState,
+                stack: error.stack
+            });
+            throw new Error(`Failed to fetch bookings: ${error.message}`);
+        }
+    }
+
+    static async updateStatus(id, status) {
+        try {
+            console.log('[Booking Model] Updating booking status:', { id, status });
+            const result = await query(
+                'UPDATE bookings SET status = ? WHERE id = ?',
+                [status, id]
+            );
+            console.log('[Booking Model] Update result:', result);
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('[Booking Model] Error in updateStatus:', {
+                message: error.message,
+                code: error.code,
+                sqlState: error.sqlState,
+                stack: error.stack
+            });
+            throw error;
+        }
+    }
+
+    static async updateEBillDetails(id, eBillDetails) {
+        try {
+            const [result] = await pool.query(
+                'UPDATE bookings SET e_bill_details = ? WHERE id = ?',
+                [JSON.stringify(eBillDetails), id]
+            );
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Error updating e-bill details:', error);
             throw error;
         }
     }

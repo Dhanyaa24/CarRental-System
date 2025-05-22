@@ -17,8 +17,19 @@ const PORT = process.env.PORT || 5000;
 // Security middleware
 app.use(helmet()); // Add security headers
 app.use(cors({
-    origin: ['http://localhost:8080', 'http://127.0.0.1:8080', 'http://localhost:5000', 'http://127.0.0.1:5000'],
-    credentials: true
+    origin: [
+        'http://localhost:8080',
+        'http://127.0.0.1:8080',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000',
+        'http://localhost:5500',
+        'http://127.0.0.1:5500',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+    ],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Authorization']
 }));
 
 // Body parsing middleware

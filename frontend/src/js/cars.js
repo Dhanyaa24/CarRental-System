@@ -62,7 +62,7 @@ function createCarCard(car) {
                 <h5 class="card-title">${car.brand} ${car.model}</h5>
                 <p class="card-text">
                     <span class="badge bg-primary">${car.category}</span>
-                    <span class="badge bg-success">₹${car.price}/day</span>
+                    <span class="badge bg-success">Rs${car.price}/day</span>
                 </p>
                 <div class="car-specs">
                     <div><i class="fas fa-cog"></i> ${car.transmission}</div>
@@ -94,7 +94,7 @@ function openBookingModal(car) {
                 <div class="col-md-8">
                     <div class="card-body">
                         <h5 class="card-title">${car.brand} ${car.model}</h5>
-                        <p class="card-text">Price per day: ₹${car.price}</p>
+                        <p class="card-text">Price per day: Rs${car.price}</p>
                     </div>
                 </div>
             </div>
@@ -175,12 +175,39 @@ async function handleBookingSubmit(event) {
         }
         
         bookingModal.hide();
-        alert('Booking successful! You can view your booking in the My Bookings section.');
-        window.location.href = 'bookings.html';
+
+        // Show booking pending confirmation message
+        Swal.fire({
+            icon: 'info',
+            title: 'Booking Submitted!',
+            html: `
+                <div class="text-center">
+                    <h4>Thank you for your booking</h4>
+                    <p class="mt-3">Your booking request has been submitted successfully.</p>
+                    <p>Our admin team will confirm your booking shortly.</p>
+                    <p>Please check your bookings page for status updates.</p>
+                </div>
+            `,
+            showConfirmButton: true,
+            confirmButtonText: 'View My Bookings',
+            confirmButtonColor: '#0d6efd',
+            showCancelButton: true,
+            cancelButtonText: 'Close',
+            allowOutsideClick: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'bookings.html';
+            }
+        });
         
     } catch (error) {
         console.error('Booking error:', error);
-        alert(error.message || 'An error occurred while processing your booking');
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops...',
+            text: error.message || 'An error occurred while processing your booking',
+            confirmButtonColor: '#dc3545'
+        });
     } finally {
         submitButton.disabled = false;
         submitButton.innerHTML = 'Confirm Booking';

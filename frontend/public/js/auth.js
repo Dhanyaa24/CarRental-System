@@ -229,7 +229,12 @@ async function loginUser(event) {
                 
                 // Small delay to ensure storage is complete before redirect
                 setTimeout(() => {
-                window.location.href = 'dashboard.html';
+                    const user = JSON.parse(localStorage.getItem('user'));
+                    if (user && user.role === 'admin') {
+                        window.location.href = 'admin.html';
+                    } else {
+                        window.location.href = 'dashboard.html';
+                    }
                 }, 100);
             } catch (storageError) {
                 console.error('Error storing data in localStorage:', storageError);

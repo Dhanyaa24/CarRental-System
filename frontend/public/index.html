@@ -27,6 +27,9 @@
                         <li class="nav-item logged-in-only" style="display: none;">
                             <a class="nav-link" href="bookings.html"><i class="fas fa-calendar-alt me-1"></i>My Bookings</a>
                         </li>
+                        <li class="nav-item logged-in-only" style="display: none;">
+                            <a class="nav-link" href="#" id="dashboardLink"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
+                        </li>
                     </ul>
                     <ul class="navbar-nav">
                         <li class="nav-item logged-out-only">
@@ -233,5 +236,21 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
     <script src="js/main.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dashboardLink = document.getElementById('dashboardLink');
+            if (dashboardLink) {
+                dashboardLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const user = JSON.parse(localStorage.getItem('user'));
+                    if (user && user.role === 'admin') {
+                        window.location.href = 'admin.html';
+                    } else {
+                        window.location.href = 'dashboard.html';
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

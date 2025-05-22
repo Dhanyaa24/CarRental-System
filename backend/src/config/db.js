@@ -90,16 +90,35 @@ const testConnection = async () => {
  * @returns {Promise<Array>} Query results
  */
 const query = async (sql, params = []) => {
+  let connection;
   try {
-    const [results] = await pool.execute(sql, params);
+    console.log('Executing query:', {
+      sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
+      params: params
+    });
+    
+    connection = await pool.getConnection();
+    const [results] = await connection.execute(sql, params);
+    console.log('Query executed successfully:', {
+      rowsAffected: results.affectedRows,
+      insertId: results.insertId,
+      rowCount: Array.isArray(results) ? results.length : 0
+    });
     return results;
   } catch (error) {
     console.error('Query error:', {
       message: error.message,
+      code: error.code,
+      sqlState: error.sqlState,
       sql: sql.substring(0, 100) + (sql.length > 100 ? '...' : ''),
-      code: error.code
+      params: params,
+      stack: error.stack
     });
     throw error;
+  } finally {
+    if (connection) {
+      connection.release();
+    }
   }
 };
 
